@@ -4,6 +4,7 @@ import { DEFAULT_API_HOST, DEFAULT_MODELS, StoreKey } from "../constant";
 import { getHeaders } from "../client/api";
 import { BOT_HELLO } from "./chat";
 import { getClientConfig } from "../config/client";
+import { nanoid } from "nanoid";
 
 export interface AccessControlStore {
   accessCode: string;
@@ -22,6 +23,13 @@ export interface AccessControlStore {
   enabledAccessControl: () => boolean;
   isAuthorized: () => boolean;
   fetch: () => void;
+
+  qrToken: string,
+  qrTokenInfo: object,
+  updateQrToken: () => void;
+  updateQrTokenInfo: (_: object) => void;
+  fetchQrToken: () => any;
+  fetchQrTokenInfo: () => any;
 }
 
 let fetchState = 0; // 0 not fetch, 1 fetching, 2 done
@@ -61,7 +69,7 @@ export const useAccessStore = create<AccessControlStore>()(
 
         // has token or has code or disabled access control
         return (
-          !!get().token || !!get().accessCode || !get().enabledAccessControl()
+          !!get().token || !!get().qrToken|| !!get().accessCode || !get().enabledAccessControl()
         );
       },
       fetch() {
@@ -91,6 +99,40 @@ export const useAccessStore = create<AccessControlStore>()(
           .finally(() => {
             fetchState = 2;
           });
+      },
+
+      // 微信二维码登录逻辑
+      qrToken: nanoid(32),
+      qrTokenInfo: {},
+      updateQrToken() {
+        set(() => ({ qrToken: nanoid(32) }));
+      },
+      updateQrTokenInfo(tokenInfo: object) {
+        set(() => ({ qrTokenInfo: tokenInfo }));
+      },
+      async fetchQrToken() {
+        return await (await fetch("/api/mp/qrcode?code=" + get().qrToken, {
+          method: "post",
+          body: null,
+          headers: {
+            ...getHeaders(),
+          },
+        })).json();
+      },
+      async fetchQrTokenInfo() {
+        const res: any = await (await fetch("/api/mp/qrtoken?code=" + get().qrToken, {
+          method: "post",
+          body: null,
+          headers: {
+            ...getHeaders(),
+          },
+        })).json();
+        if (res.status === 1 && res.data.length) {
+          const tokenInfo = res.data[0];
+          tokenInfo.value = JSON.parse(tokenInfo.value);
+          get().updateQrTokenInfo(tokenInfo);
+        }
+        return res;
       },
     }),
     {

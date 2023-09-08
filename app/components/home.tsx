@@ -125,9 +125,11 @@ function Screen() {
   const isHome = location.pathname === Path.Home;
   const isAuth = location.pathname === Path.Auth;
   const isMobileScreen = useMobileScreen();
+  const params = new URLSearchParams(window.location.search);
 
   useEffect(() => {
     loadAsyncGoogleFont();
+    console.log(params.get('code'));
   }, []);
 
   return (

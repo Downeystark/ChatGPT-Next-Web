@@ -19,16 +19,17 @@ function parseApiKey(bearToken: string) {
   const isOpenAiKey = !token.startsWith(ACCESS_CODE_PREFIX);
 
   return {
+    qrToken: token.startsWith("user_wx:") ? token.replace("user_wx:", "") : "",
     accessCode: isOpenAiKey ? "" : token.slice(ACCESS_CODE_PREFIX.length),
     apiKey: isOpenAiKey ? token : "",
   };
 }
 
-export function auth(req: NextRequest) {
+export async function auth(req: NextRequest) {
   const authToken = req.headers.get("Authorization") ?? "";
 
   // check if it is openai api key or user token
-  const { accessCode, apiKey: token } = parseApiKey(authToken);
+  const { qrToken, accessCode, apiKey: token } = parseApiKey(authToken);
 
   const hashedCode = md5.hash(accessCode ?? "").trim();
 
@@ -39,6 +40,33 @@ export function auth(req: NextRequest) {
   console.log("[User IP] ", getIP(req));
   console.log("[Time] ", new Date().toLocaleString());
 
+  if (serverConfig.needCode && qrToken) {
+    try {
+      let { status, data } = await (
+        await fetch(
+          `http://mpapi.kekuming.xin/mpsdk/checkToken?code=${qrToken}`,
+          {
+            headers: {},
+            body: null,
+            method: "POST",
+          },
+        )
+      ).json();
+      if (status !== 1) {
+        return {
+          error: true,
+          msg: "fail access qrToken",
+        };
+      }
+    } catch (e) {
+      console.log("获取qrToken校检失败");
+      return {
+        error: true,
+        msg: "timeout access qrToken",
+      };
+    }
+  }
+
   if (serverConfig.needCode && !serverConfig.codes.has(hashedCode) && !token) {
     return {
       error: true,
@@ -47,7 +75,7 @@ export function auth(req: NextRequest) {
   }
 
   // if user does not provide an api key, inject system api key
-  if (!token) {
+  if (!token || qrToken) {
     const apiKey = serverConfig.apiKey;
     if (apiKey) {
       console.log("[Auth] use system api key");

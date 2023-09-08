@@ -134,6 +134,7 @@ export function getHeaders() {
 
   const makeBearer = (token: string) => `Bearer ${token.trim()}`;
   const validString = (x: string) => x && x.length > 0;
+  const user = (accessStore.qrTokenInfo as any)?.key;
 
   // use user's api key first
   if (validString(accessStore.token)) {
@@ -145,6 +146,8 @@ export function getHeaders() {
     headers.Authorization = makeBearer(
       ACCESS_CODE_PREFIX + accessStore.accessCode,
     );
+  } else if (accessStore.enabledAccessControl() && validString(user)) {
+    headers.Authorization = makeBearer(user);
   }
 
   return headers;
